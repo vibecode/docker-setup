@@ -1,0 +1,84 @@
+version: '3'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: docker_setup_frontend
+    command: serve -s build  -l 3000
+    ports:
+      - '3000:3000'
+    restart: unless-stopped
+    networks:
+      - doker-setup-network
+
+  api:
+    build: ./api
+    container_name: docker_setup_api
+    command: npm run start
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      - PORT=3001
+      - MONGO_URL=mongodb://api_db:27017/api
+      - AUTH_URL=http://auth:3002/api
+    depends_on:
+      - api_db
+    networks:
+      - doker-setup-network
+
+  auth:
+    build: ./auth
+    container_name: docker_setup_auth
+    command: npm run start
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    environment:
+      - PORT=3002
+      - MONGO_URL=mongodb://auth_db:27017/auth
+      - API_URL=http://api:3001/api
+    depends_on:
+      - auth_db
+    networks:
+      - doker-setup-network
+
+  api_db:
+    image: mongo:latest
+    container_name: docker_setup_api_db
+    volumes:
+      - mongodb_api:/data/db
+    networks:
+      - doker-setup-network
+
+  auth_db:
+    image: mongo:latest
+    container_name: docker_setup_auth_db
+    volumes:
+      - mongodb_auth:/data/db
+    networks:
+      - doker-setup-network
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: docker_setup_nginx
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/nginx.conf.prod:/etc/nginx/conf.d/nginx.conf
+    depends_on:
+      - frontend
+      - api
+      - auth
+    networks:
+      - doker-setup-network
+
+volumes:
+  mongodb_api:
+  mongodb_auth:
+
+networks:
+  doker-setup-network:
+    driver: bridge
